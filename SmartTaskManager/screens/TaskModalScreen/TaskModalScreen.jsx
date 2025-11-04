@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { StatusBar } from 'react-native/types_generated/index';
 
 export const AddTaskModalScreen = ({ navigation }) => {
   // State to hold the user's natural language input
