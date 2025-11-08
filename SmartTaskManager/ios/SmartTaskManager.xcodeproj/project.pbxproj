@@ -11,6 +11,12 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		C08EBEE2CC354A49AB6C57DF /* StackSansNotch-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D5A161F19F7C47839290D358 /* StackSansNotch-Bold.ttf */; };
+		33EA69907D7648C19D9ED126 /* StackSansNotch-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6C7A40E1DB7C490AAADF0FDC /* StackSansNotch-ExtraLight.ttf */; };
+		490403A3038F40C3B9E252AA /* StackSansNotch-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 207A43950CBA4FE8BE6831CF /* StackSansNotch-Light.ttf */; };
+		4302F9711D224A0490975FAB /* StackSansNotch-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AD3D69EF24F649D284DCC2E2 /* StackSansNotch-Medium.ttf */; };
+		46E8CC4AFC3248C4A5830C0A /* StackSansNotch-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1171B626CF4A438D8035B81A /* StackSansNotch-Regular.ttf */; };
+		8C9893A9CBC34AF5849A5AF4 /* StackSansNotch-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AED5AA96F0CB4D69ADA5042D /* StackSansNotch-SemiBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +30,12 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = SmartTaskManager/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = SmartTaskManager/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		D5A161F19F7C47839290D358 /* StackSansNotch-Bold.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-Bold.ttf"; path = "../assets/fonts/StackSansNotch-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		6C7A40E1DB7C490AAADF0FDC /* StackSansNotch-ExtraLight.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-ExtraLight.ttf"; path = "../assets/fonts/StackSansNotch-ExtraLight.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		207A43950CBA4FE8BE6831CF /* StackSansNotch-Light.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-Light.ttf"; path = "../assets/fonts/StackSansNotch-Light.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		AD3D69EF24F649D284DCC2E2 /* StackSansNotch-Medium.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-Medium.ttf"; path = "../assets/fonts/StackSansNotch-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		1171B626CF4A438D8035B81A /* StackSansNotch-Regular.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-Regular.ttf"; path = "../assets/fonts/StackSansNotch-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		AED5AA96F0CB4D69ADA5042D /* StackSansNotch-SemiBold.ttf */ = {isa = PBXFileReference; name = "StackSansNotch-SemiBold.ttf"; path = "../assets/fonts/StackSansNotch-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +86,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				5A1881BEE84A46EFAF5E1C03 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -96,6 +109,20 @@
 			);
 			path = Pods;
 			sourceTree = "<group>";
+		};
+		5A1881BEE84A46EFAF5E1C03 /* Resources */ = {
+			isa = "PBXGroup";
+			children = (
+				D5A161F19F7C47839290D358 /* StackSansNotch-Bold.ttf */,
+				6C7A40E1DB7C490AAADF0FDC /* StackSansNotch-ExtraLight.ttf */,
+				207A43950CBA4FE8BE6831CF /* StackSansNotch-Light.ttf */,
+				AD3D69EF24F649D284DCC2E2 /* StackSansNotch-Medium.ttf */,
+				1171B626CF4A438D8035B81A /* StackSansNotch-Regular.ttf */,
+				AED5AA96F0CB4D69ADA5042D /* StackSansNotch-SemiBold.ttf */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+			path = "";
 		};
 /* End PBXGroup section */
 
@@ -159,6 +186,12 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				C08EBEE2CC354A49AB6C57DF /* StackSansNotch-Bold.ttf in Resources */,
+				33EA69907D7648C19D9ED126 /* StackSansNotch-ExtraLight.ttf in Resources */,
+				490403A3038F40C3B9E252AA /* StackSansNotch-Light.ttf in Resources */,
+				4302F9711D224A0490975FAB /* StackSansNotch-Medium.ttf in Resources */,
+				46E8CC4AFC3248C4A5830C0A /* StackSansNotch-Regular.ttf in Resources */,
+				8C9893A9CBC34AF5849A5AF4 /* StackSansNotch-SemiBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

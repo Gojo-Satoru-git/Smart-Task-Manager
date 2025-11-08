@@ -1,0 +1,29 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/StackSansNotch-Bold.ttf",
+      "sha1": "88a7118ec415b7153ba8b6f6affc33fad7f1fdb0"
+    },
+    {
+      "path": "assets/fonts/StackSansNotch-ExtraLight.ttf",
+      "sha1": "a1135c755d3cd3e240510bd3e67a14f8923502eb"
+    },
+    {
+      "path": "assets/fonts/StackSansNotch-Light.ttf",
+      "sha1": "42bd9490f2fbd9647c0721717fc0d29c58038f3d"
+    },
+    {
+      "path": "assets/fonts/StackSansNotch-Medium.ttf",
+      "sha1": "99880a780f46d446e335914c56ffb101426e7ce2"
+    },
+    {
+      "path": "assets/fonts/StackSansNotch-Regular.ttf",
+      "sha1": "e205bdfa2da5e63ce7a70bd93d8d521a46508d81"
+    },
+    {
+      "path": "assets/fonts/StackSansNotch-SemiBold.ttf",
+      "sha1": "2d8a55bce6e707a44b20812d6c6b6770be5daf97"
+    }
+  ]
+}
