@@ -2,7 +2,7 @@ import os
 import re
 from datetime import datetime, timezone, timedelta
 import pandas as pd
-import numpy as np # <-- NEW
+import numpy as np
 
 # --- Flask & DB Imports ---
 from flask import Flask, request, jsonify
@@ -13,8 +13,11 @@ from flask_sqlalchemy import SQLAlchemy
 import spacy
 import dateparser
 import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer      # <-- ADD
+from sklearn.ensemble import RandomForestRegressor         # <-- ADD
+from sklearn.pipeline import Pipeline
 
-# --- NEW RL IMPORTS ---
+# --- RL Imports ---
 import tensorflow as tf
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.networks import q_network
@@ -24,8 +27,6 @@ from tf_agents.utils import common
 from tf_agents.trajectories import trajectory
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.trajectories import time_step as ts
-# We don't need policy_saver anymore
-# ------------------------
 
 # --- Initialize App & DB---
 app = Flask(__name__)
@@ -45,13 +46,10 @@ priority_model_path = os.path.join(base_dir, 'ml_models', 'priority_model.joblib
 priority_model = joblib.load(priority_model_path)
 print("Priority prediction model loaded.")
 
-
-# --- 2. NEW RL: Define Agent & Environment ---
-# We will create the agent when the server starts
+# --- 2. RL: Define Agent & Environment ---
 rl_agent = None 
 tf_env = None
 
-# Define the Environment (The "World")
 class CalendarEnv(py_environment.PyEnvironment):
     def __init__(self):
         self._observation_spec = array_spec.BoundedArraySpec(
@@ -71,8 +69,6 @@ class CalendarEnv(py_environment.PyEnvironment):
         return ts.restart(self._state)
     
     def _step(self, action):
-        # This is just a placeholder, in a real app
-        # the agent would be trained on real reward data
         if self._episode_ended: return self.reset()
         chosen_slot = action
         if self._state[chosen_slot] == 1: reward = -100
@@ -81,19 +77,15 @@ class CalendarEnv(py_environment.PyEnvironment):
         self._episode_ended = True
         return ts.termination(self._state, reward=reward)
 
-# Define the function to create the agent
 def create_agent():
     print("Setting up RL environment...")
     py_env = CalendarEnv()
     train_env = tf_py_environment.TFPyEnvironment(py_env)
-
-    # Define the Neural Network
     q_net = q_network.QNetwork(
         train_env.observation_spec(),
         train_env.action_spec(),
         fc_layer_params=(128, 64)
     )
-    # Define the Agent
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=1e-3)
     agent = dqn_agent.DqnAgent(
         train_env.time_step_spec(),
@@ -107,17 +99,24 @@ def create_agent():
     print("RL Agent initialized successfully in memory.")
     return agent, train_env
 
-# --- 3. Define the Task Database Model (No change) ---
+# --- Helper for fixing timezones ---
+def to_utc_iso(dt):
+    """Takes a naive datetime from the DB (assumed UTC) and makes it a proper UTC ISO string."""
+    if not dt:
+        return None
+    dt_aware = dt.replace(tzinfo=timezone.utc)
+    return dt_aware.isoformat()
+
+# --- 3. Define the Task Database Model ---
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_name = db.Column(db.String(200), nullable=False)
     due_date = db.Column(db.DateTime, nullable=True)
     predicted_time_min = db.Column(db.Integer, nullable=True)
     predicted_priority = db.Column(db.String(50), nullable=True)
-    
-    scheduled_time = db.Column(db.DateTime, nullable=True, default=None) # <-- ADD THIS LINE
-
-    status = db.Column(db.String(50), default='pending') # 'pending' or 'completed'
+    my_day_date = db.Column(db.Date, nullable=True, default=None) # <-- CORRECT
+    scheduled_time = db.Column(db.DateTime, nullable=True, default=None) 
+    status = db.Column(db.String(50), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime, nullable=True)
     actual_time_taken_min = db.Column(db.Integer, nullable=True)
@@ -129,15 +128,14 @@ class Task(db.Model):
             'due_date': self.due_date.isoformat() if self.due_date else None,
             'predicted_time_min': self.predicted_time_min,
             'predicted_priority': self.predicted_priority,
-            
-            'scheduled_time': self.scheduled_time.isoformat() if self.scheduled_time else None, # <-- ADD THIS LINE
-
+            'scheduled_time': to_utc_iso(self.scheduled_time),
+            'my_day_date': self.my_day_date.isoformat() if self.my_day_date else None, # <-- CORRECT
             'status': self.status,
-            'created_at': self.created_at.isoformat(),
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+            'created_at': to_utc_iso(self.created_at),
+            'completed_at': to_utc_iso(self.completed_at)
         }
 
-# --- 4. All Existing API Endpoints (No change) ---
+# --- 4. API Endpoints ---
 
 # --- ML Parsing Endpoint ---
 @app.route("/api/v1/parse-task", methods=["POST"])
@@ -200,19 +198,47 @@ def create_task():
     db.session.commit()
     return jsonify(new_task.to_dict()), 201
 
-# --- GET tasks (pending AND recently completed) ---
+# --- GET tasks (My Day, pending, and completed) ---
+# *** THIS IS THE CORRECT, SINGLE VERSION ***
 @app.route("/api/v1/tasks", methods=["GET"])
 def get_tasks():
-    pending_tasks = Task.query.filter_by(status='pending').order_by(Task.due_date.asc()).all()
+    # 1. Get "My Day" tasks (tasks where the date is today)
+    today = datetime.now().date()
+    my_day_tasks = Task.query.filter_by(
+        status='pending',
+        my_day_date=today
+    ).order_by(Task.due_date.asc()).all()
+    
+    my_day_task_ids = {task.id for task in my_day_tasks}
+
+    # 2. Get all other pending tasks
+    pending_tasks = Task.query.filter(
+        Task.status == 'pending',
+        Task.id.notin_(my_day_task_ids)
+    ).order_by(Task.due_date.asc()).all()
+    
+    # 3. Get tasks completed in the last 24 hours
     twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     completed_tasks = Task.query.filter(
-        Task.status == 'completed', Task.completed_at >= twenty_four_hours_ago
+        Task.status == 'completed',
+        Task.completed_at >= twenty_four_hours_ago
     ).order_by(Task.completed_at.desc()).all()
     
+    # 4. Return a dictionary with all three lists
     return jsonify({
+        'my_day': [task.to_dict() for task in my_day_tasks],
         'pending': [task.to_dict() for task in pending_tasks],
         'completed': [task.to_dict() for task in completed_tasks]
     })
+
+# --- GET a single task by ID ---
+# *** THIS IS THE MISSING ENDPOINT FOR THE DETAIL SCREEN ***
+@app.route("/api/v1/tasks/<int:task_id>", methods=["GET"])
+def get_task(task_id):
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify(task.to_dict())
 
 # --- COMPLETE a task ---
 @app.route("/api/v1/tasks/<int:task_id>/complete", methods=["PUT"])
@@ -232,23 +258,43 @@ def complete_task(task_id):
     print(f"Task {task.id} completed. Actual time: {task.actual_time_taken_min} min")
     return jsonify(task.to_dict())
 
-# --- Productivity Insights Endpoint ---
-# --- 6. Productivity Insights Endpoint (Upgraded) ---
+# --- ADD/REMOVE FROM MY DAY ---
+@app.route("/api/v1/tasks/<int:task_id>/myday", methods=["POST"])
+def toggle_my_day(task_id):
+    task = Task.query.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    
+    today = datetime.now().date()
 
-# (Your 'generate_insight_string' helper function stays the same)
-def generate_insight_string(center):
+    if task.my_day_date == today:
+        task.my_day_date = None
+    else:
+        task.my_day_date = today
+    
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+# --- Productivity Insights Endpoint ---
+def generate_insight_string(center, count, priority_habit):
+    """Helper function to turn cluster centers into a readable string."""
     day_map = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    hour_map = {(0, 5): "late at night", (5, 9): "early morning", (9, 12): "morning",
-                (12, 17): "afternoon", (17, 21): "evening", (21, 24): "at night"}
+    hour_map = {(0, 5): "late at night", (5, 9): "early morning", (9, 12): "in the morning",
+                (12, 17): "in the afternoon", (17, 21): "in the evening", (21, 24): "at night"}
     try:
         day_index = int(round(center[0])); day_index = max(0, min(day_index, 6))
         day = day_map[day_index]
         hour = int(round(center[1])); hour = max(0, min(hour, 23))
+        
         time_of_day = "at night"
         for (start, end), description in hour_map.items():
             if start <= hour < end: time_of_day = description; break
-        return f"Your primary habit seems to be on {day}s {time_of_day} (around {hour}:00)."
+        
+        # NEW, smarter insight string
+        return f"Your primary habit is {time_of_day} on {day}s (around {hour}:00). You've completed {count} tasks in this time, mostly '{priority_habit}' priority."
+
     except Exception as e:
+        print(f"Error generating insight: {e}")
         return "Could not generate insight."
 
 @app.route("/api/v1/insights", methods=["GET"])
@@ -261,16 +307,18 @@ def get_insights():
     if not completed_tasks or len(completed_tasks) < 3:
         return jsonify({
             "insight": "Not enough data yet. Complete more tasks to see your productivity insights!",
-            "daily_summary": None # Send null for the chart
+            "daily_summary": None
         })
 
+    # --- 1. UPGRADE: Add 'priority' to the data ---
     data = []
     for task in completed_tasks:
         if task.completed_at:
             completed_time = task.completed_at.astimezone(timezone.utc)
             data.append({
                 'day_of_week': completed_time.weekday(), # Monday=0, Sunday=6
-                'hour_of_day': completed_time.hour
+                'hour_of_day': completed_time.hour,
+                'priority': task.predicted_priority or 'Low' # Add priority
             })
     
     if len(data) < 3:
@@ -278,122 +326,107 @@ def get_insights():
 
     df = pd.DataFrame(data)
     
-    # --- 1. NEW: Aggregate data for the bar chart ---
-    # Count occurrences of each day
+    # --- 2. Aggregate data for the bar chart (No change) ---
     daily_counts = df['day_of_week'].value_counts().to_dict()
-    # Create a 7-day list, initializing all counts to 0
     day_counts_list = [0] * 7
     for day, count in daily_counts.items():
         if 0 <= day <= 6:
-            day_counts_list[day] = int(count) # Make sure it's a standard int
+            day_counts_list[day] = int(count)
             
-    # Create the chart object
     daily_summary_chart = {
         'labels': ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        'datasets': [{
-            'data': day_counts_list
-        }]
+        'datasets': [{'data': day_counts_list}]
     }
 
-    # --- 2. Run Clustering (Same as before) ---
+    # --- 3. Run Clustering (UPGRADED) ---
     from sklearn.cluster import KMeans
     from sklearn.preprocessing import StandardScaler
+    
+    # We only cluster on the numeric time/day data
+    numeric_cols = ['day_of_week', 'hour_of_day']
+    
     scaler = StandardScaler()
-    df_scaled = scaler.fit_transform(df)
+    # Fit the scaler only to the numeric columns
+    df_scaled = scaler.fit_transform(df[numeric_cols])
+    
     kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
+    # Predict clusters based on scaled numeric data
     df['cluster'] = kmeans.fit_predict(df_scaled)
+    
     centers_scaled = kmeans.cluster_centers_
     centers_original = scaler.inverse_transform(centers_scaled)
     main_cluster_id = df['cluster'].mode()[0]
     main_center = centers_original[main_cluster_id]
     
-    # --- 3. Generate Insight (Same as before) ---
-    insight_text = generate_insight_string(main_center)
+    # --- 4. NEW: Analyze the main cluster ---
+    cluster_df = df[df['cluster'] == main_cluster_id]
+    task_count = len(cluster_df)
+    # Find the most common priority (the "mode") in this cluster
+    priority_habit = "tasks" # default
+    if not cluster_df.empty:
+        priority_habit = cluster_df['priority'].mode().iloc[0]
 
-    # --- 4. NEW: Return both insight and chart data ---
+    # --- 5. Generate Insight (UPGRADED) ---
+    # Pass all our new data to the helper
+    insight_text = generate_insight_string(main_center, task_count, priority_habit)
+
     return jsonify({
         "insight": insight_text,
-        "daily_summary": daily_summary_chart # Send the new chart object
+        "daily_summary": daily_summary_chart
     })
-
 # --- Helper function for RL scheduler ---
 def time_to_slot(dt, start_of_week):
-    """Converts a datetime object into a 0-167 hour slot."""
     if not dt: return None
-    # Ensure dt is offset-aware (UTC)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    
-    # Calculate time difference in hours from the start of the week
     time_diff_hours = (dt - start_of_week).total_seconds() / 3600
-    
-    # We only care about this week (0-167)
     slot = int(round(time_diff_hours))
     if 0 <= slot < 168:
         return slot
     return None
 
-# --- 5. NEW: Smart Schedule Endpoint (Stateful) ---
+# --- Smart Schedule Endpoint (Stateful) ---
 @app.route("/api/v1/smart-schedule", methods=["GET"])
 def get_smart_schedule():
-    global rl_agent, tf_env # Use the agent we created at launch
+    global rl_agent, tf_env
 
-    # 1. Define the week's start (relative to today)
     today = datetime.now(timezone.utc)
     start_of_week = today - timedelta(days=today.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 2. Get all pending tasks from DB
     pending_tasks = Task.query.filter_by(status='pending').all()
     if not pending_tasks:
-        return jsonify([]) # Return an empty list if no tasks
+        return jsonify([])
 
-    # 3. Create the calendar "world" and find tasks that need scheduling
     current_calendar_state = np.zeros(168, dtype=np.int32)
     already_scheduled_list = []
     tasks_to_schedule = []
 
     for task in pending_tasks:
         if task.scheduled_time:
-            # This task is already scheduled. Add it to our calendar.
             slot = time_to_slot(task.scheduled_time, start_of_week)
             if slot is not None:
-                current_calendar_state[slot] = 1 # Mark as full
+                current_calendar_state[slot] = 1
                 already_scheduled_list.append(task)
             else:
-                # It's an old task from a past week, needs rescheduling
                 tasks_to_schedule.append(task)
         else:
-            # This task has no schedule, it needs one
             tasks_to_schedule.append(task)
     
-    # 4. Loop through each *new* task and ask the agent where to put it
     newly_scheduled_list = []
     for task in tasks_to_schedule:
-        # Get the agent's decision (our demo logic)
         empty_slots = np.where(current_calendar_state == 0)[0]
-        
-        # Use our "safe" UTC range (8am-3pm UTC, which is 1:30pm-8:30pm IST)
         reasonable_slots = [s for s in empty_slots if 8 <= (s % 24) <= 15]
         
         if not reasonable_slots:
-            # No reasonable slots left, can't schedule this one
             continue 
 
         chosen_slot = np.random.choice(reasonable_slots)
-        
-        # 5. Mark this slot as "full" for the next loop
         current_calendar_state[int(chosen_slot)] = 1
-        
-        # 6. Convert slot (0-167) to a real date
         scheduled_time = start_of_week + timedelta(hours=int(chosen_slot))
-
-        # 7. --- THIS IS THE KEY ---
-        # Save the new schedule time to the database
         task.scheduled_time = scheduled_time
         newly_scheduled_list.append(task)
     
-    # 8. Commit all the new scheduled times to the database
     try:
         db.session.commit()
     except Exception as e:
@@ -401,20 +434,77 @@ def get_smart_schedule():
         print(f"Error saving schedule: {e}")
         return jsonify({"error": "Failed to save schedule"}), 500
     
-    # 9. Return the full, persistent schedule
     all_scheduled_tasks = already_scheduled_list + newly_scheduled_list
     return jsonify([task.to_dict() for task in all_scheduled_tasks])
+# --- 7. NEW: Model Retraining Endpoint ---
+@app.route("/api/v1/retrain", methods=["POST"])
+def retrain_models():
+    global time_model # We need this to reload the model into memory
+    
+    print("Retraining process started...")
+    
+    # --- 1. Fetch all completed tasks with actual time data ---
+    try:
+        tasks = Task.query.filter(
+            Task.status == 'completed',
+            Task.actual_time_taken_min.isnot(None)
+        ).all()
+    except Exception as e:
+        print(f"DB Error: {e}")
+        return jsonify({"error": "Could not access database."}), 500
 
+    # We need at least 10 data points to retrain
+    if not tasks or len(tasks) < 10:
+        print(f"Not enough data. Found {len(tasks)}, need 10.")
+        return jsonify({
+            "message": f"Not enough data. You need at least 10 completed tasks. You have {len(tasks)}."
+        }), 400
+
+    # --- 2. Create a pandas DataFrame ---
+    data = []
+    for t in tasks:
+        data.append({
+            'task_name': t.task_name,
+            'actual_time_min': t.actual_time_taken_min
+        })
+    df = pd.DataFrame(data)
+    print(f"Retraining time model with {len(df)} data points.")
+
+    # --- 3. Re-define the Time Model Pipeline ---
+    # (This must be the same definition as in time_predictor.py)
+    model_pipeline = Pipeline([
+        ('tfidf', TfidfVectorizer(stop_words='english')),
+        ('regressor', RandomForestRegressor(n_estimators=10, random_state=42))
+    ])
+
+    # --- 4. Re-train the Model ---
+    try:
+        model_pipeline.fit(df['task_name'], df['actual_time_min'])
+    except Exception as e:
+        print(f"Model training failed: {e}")
+        return jsonify({"error": "Model training failed."}), 500
+
+    # --- 5. Overwrite the old model file ---
+    try:
+        joblib.dump(model_pipeline, time_model_path)
+        
+        # --- 6. Reload the new model into server memory ---
+        time_model = model_pipeline
+        
+        print("Retraining complete. New model saved and loaded.")
+        return jsonify({
+            "message": f"Models retrained successfully on {len(df)} tasks! I'm smarter now."
+        })
+    except Exception as e:
+        print(f"Failed to save new model: {e}")
+        return jsonify({"error": "Failed to save the new model."}), 500
 
 # --- 6. Run the App ---
 if __name__ == "__main__":
     with app.app_context():
-        # Create DB tables
         db.create_all()
-        
-        # --- NEW: Create the RL agent on launch ---
-        # This will run once and load the agent into memory
         rl_agent, tf_env = create_agent()
         
     print("--- Server is ready, starting... ---")
+    # *** THIS IS THE CORRECTED SYNTAX ***
     app.run(debug=True, host='0.0.0.0', port=5000)

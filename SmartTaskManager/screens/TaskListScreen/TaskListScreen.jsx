@@ -8,23 +8,27 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import getFont from './../../styles/theme';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
+// Import your font helper
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { URL } from '../../ip';
+// --- (Make sure this IP is correct) ---
+const API_URL = URL.nitin;
 
-const API_URL = 'http://10.209.2.40:5000'; // Replace with your IP
-
-// --- TaskItem component ---
-// We'll add a 'status' prop to change its style
-const TaskItem = ({ task, navigation, onComplete }) => {
+// --- UPDATED TaskItem component ---
+const TaskItem = ({ task, navigation, onComplete, onToggleMyDay }) => {
   const isCompleted = task.status === 'completed';
 
+  // Check if the task is on "My Day"
+  const isOnMyDay = task.my_day_date ? true : false;
+
   const handleComplete = () => {
-    // Only allow completing if it's pending
-    if (!isCompleted) {
-      onComplete(task.id);
-    }
+    if (!isCompleted) onComplete(task.id);
+  };
+
+  const handleToggleMyDay = () => {
+    if (!isCompleted) onToggleMyDay(task); // Pass the whole task
   };
 
   const handlePress = () => {
@@ -47,25 +51,46 @@ const TaskItem = ({ task, navigation, onComplete }) => {
         {isCompleted && <Icon name="checkmark" size={16} color="#fff" />}
       </TouchableOpacity>
 
+      {/* Task Text */}
       <View style={styles.taskTextContainer}>
         <Text
           style={[styles.taskText, isCompleted && styles.taskTextCompleted]}
         >
           {task.task_name}
         </Text>
-        {/* Show predicted time only if pending */}
         {!isCompleted && task.predicted_time_min && (
           <Text style={styles.taskSubText}>
             Est: {task.predicted_time_min} min
           </Text>
         )}
       </View>
+
+      {/* --- NEW "My Day" Button --- */}
+      {!isCompleted && (
+        <TouchableOpacity
+          style={styles.myDayButton}
+          onPress={handleToggleMyDay}
+        >
+          <Icon
+            name={isOnMyDay ? 'sunny' : 'sunny-outline'}
+            size={22}
+            color={isOnMyDay ? '#007AFF' : '#555'}
+          />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 };
 
-// --- TaskSection component (No changes) ---
-const TaskSection = ({ title, tasks, navigation, onComplete }) => (
+// --- TaskSection component (Updated) ---
+// Now passes 'onToggleMyDay'
+const TaskSection = ({
+  title,
+  tasks,
+  navigation,
+  onComplete,
+  onToggleMyDay,
+}) => (
   <View style={styles.sectionContainer}>
     <Text style={styles.sectionTitle}>{title}</Text>
     {tasks.map(task => (
@@ -74,16 +99,20 @@ const TaskSection = ({ title, tasks, navigation, onComplete }) => (
         task={task}
         navigation={navigation}
         onComplete={onComplete}
+        onToggleMyDay={onToggleMyDay} // Pass the function down
       />
     ))}
   </View>
 );
 
+// --- MAIN SCREEN COMPONENT ---
 export const TaskListScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
-  // --- NEW: State for both lists ---
+  // --- NEW: State for all three lists ---
+  const [myDayTasks, setMyDayTasks] = useState([]);
   const [pendingTasks, setPendingTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -95,7 +124,8 @@ export const TaskListScreen = ({ navigation }) => {
       if (!response.ok) throw new Error('Failed to fetch tasks');
 
       const data = await response.json();
-      // --- NEW: Set both lists from the server's response ---
+      // --- NEW: Set all three lists from the server's response ---
+      setMyDayTasks(data.my_day || []);
       setPendingTasks(data.pending || []);
       setCompletedTasks(data.completed || []);
     } catch (e) {
@@ -112,14 +142,25 @@ export const TaskListScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
-  // --- NEW: Updated complete task logic ---
+  // --- Handle Completing a task ---
   const handleCompleteTask = async taskId => {
-    // Find the task in our pending list
-    const taskToComplete = pendingTasks.find(task => task.id === taskId);
+    // Find where the task is (My Day or Pending)
+    let taskToComplete = myDayTasks.find(task => task.id === taskId);
+    let listType = 'my_day';
+
+    if (!taskToComplete) {
+      taskToComplete = pendingTasks.find(task => task.id === taskId);
+      listType = 'pending';
+    }
+
     if (!taskToComplete) return;
 
     // Optimistic UI: Move task immediately
-    setPendingTasks(prev => prev.filter(task => task.id !== taskId));
+    if (listType === 'my_day') {
+      setMyDayTasks(prev => prev.filter(task => task.id !== taskId));
+    } else {
+      setPendingTasks(prev => prev.filter(task => task.id !== taskId));
+    }
     setCompletedTasks(prev => [
       { ...taskToComplete, status: 'completed' },
       ...prev,
@@ -134,21 +175,75 @@ export const TaskListScreen = ({ navigation }) => {
         },
       );
       if (!response.ok) {
-        // If server fails, roll back the UI change
+        // Roll back on failure
         Alert.alert('Error', 'Could not complete the task.');
         setCompletedTasks(prev => prev.filter(task => task.id !== taskId));
-        setPendingTasks(prev => [taskToComplete, ...prev]);
+        if (listType === 'my_day') {
+          setMyDayTasks(prev => [taskToComplete, ...prev]);
+        } else {
+          setPendingTasks(prev => [taskToComplete, ...prev]);
+        }
       }
-      // If server succeeds, we're already done!
     } catch (e) {
-      // Also roll back on network error
+      // Roll back on failure
       Alert.alert('Error', 'Could not complete the task.');
       setCompletedTasks(prev => prev.filter(task => task.id !== taskId));
-      setPendingTasks(prev => [taskToComplete, ...prev]);
+      if (listType === 'my_day') {
+        setMyDayTasks(prev => [taskToComplete, ...prev]);
+      } else {
+        setPendingTasks(prev => [taskToComplete, ...prev]);
+      }
     }
   };
 
-  // --- Splitting logic (simpler) ---
+  // --- NEW: Handle Toggling "My Day" ---
+  const handleToggleMyDay = async task => {
+    let originalList;
+    let targetList;
+
+    // Get today's date as a simple YYYY-MM-DD string for the optimistic update
+    const today = new Date().toISOString().split('T')[0];
+
+    // Is it currently in "My Day"?
+    if (myDayTasks.find(t => t.id === task.id)) {
+      originalList = 'my_day';
+      targetList = 'pending';
+
+      // Optimistic UI: Move from My Day to Pending
+      setMyDayTasks(prev => prev.filter(t => t.id !== task.id));
+
+      // --- FIX: Create a new object with 'my_day_date' set to null ---
+      setPendingTasks(prev => [{ ...task, my_day_date: null }, ...prev]);
+    } else {
+      originalList = 'pending';
+      targetList = 'my_day';
+
+      // Optimistic UI: Move from Pending to My Day
+      setPendingTasks(prev => prev.filter(t => t.id !== task.id));
+
+      // --- FIX: Create a new object with a truthy 'my_day_date' ---
+      setMyDayTasks(prev => [{ ...task, my_day_date: today }, ...prev]);
+    }
+
+    // Call the server
+    try {
+      await fetch(`${API_URL}/api/v1/tasks/${task.id}/myday`, {
+        method: 'POST',
+      });
+    } catch (e) {
+      Alert.alert('Error', 'Could not update "My Day".');
+      // Roll back on failure
+      if (originalList === 'my_day') {
+        setPendingTasks(prev => prev.filter(t => t.id !== task.id));
+        setMyDayTasks(prev => [task, ...prev]);
+      } else {
+        setMyDayTasks(prev => prev.filter(t => t.id !== task.id));
+        setPendingTasks(prev => [task, ...prev]);
+      }
+    }
+  };
+
+  // --- Splitting logic for "Pending" tasks ---
   const priorityTasks = pendingTasks.filter(
     task =>
       task.predicted_priority === 'High' ||
@@ -161,41 +256,65 @@ export const TaskListScreen = ({ navigation }) => {
   );
 
   const renderContent = () => {
-    if (isLoading && pendingTasks.length === 0 && completedTasks.length === 0) {
+    if (
+      isLoading &&
+      myDayTasks.length === 0 &&
+      pendingTasks.length === 0 &&
+      completedTasks.length === 0
+    ) {
       return <ActivityIndicator size="large" style={styles.centered} />;
     }
     if (error) {
       return <Text style={styles.centered}>Error: {error}</Text>;
     }
-    if (pendingTasks.length === 0 && completedTasks.length === 0) {
+    if (
+      myDayTasks.length === 0 &&
+      pendingTasks.length === 0 &&
+      completedTasks.length === 0
+    ) {
       return <Text style={styles.centered}>No tasks found. Add one!</Text>;
     }
 
     return (
       <ScrollView>
+        {/* --- NEW: "My Day" Section --- */}
+        {myDayTasks.length > 0 && (
+          <TaskSection
+            title="☀️ My Day"
+            tasks={myDayTasks}
+            navigation={navigation}
+            onComplete={handleCompleteTask}
+            onToggleMyDay={handleToggleMyDay}
+          />
+        )}
+
         {priorityTasks.length > 0 && (
           <TaskSection
             title="✨ Smart Priority"
             tasks={priorityTasks}
             navigation={navigation}
             onComplete={handleCompleteTask}
+            onToggleMyDay={handleToggleMyDay}
           />
         )}
+
         {otherTasks.length > 0 && (
           <TaskSection
             title="Other Tasks"
             tasks={otherTasks}
             navigation={navigation}
             onComplete={handleCompleteTask}
+            onToggleMyDay={handleToggleMyDay}
           />
         )}
-        {/* --- NEW: Completed Section --- */}
+
         {completedTasks.length > 0 && (
           <TaskSection
             title="Recently Completed"
             tasks={completedTasks}
             navigation={navigation}
-            onComplete={() => {}} // No action
+            onComplete={() => {}}
+            onToggleMyDay={() => {}}
           />
         )}
       </ScrollView>
@@ -203,7 +322,7 @@ export const TaskListScreen = ({ navigation }) => {
   };
 
   return (
-    <>
+    <View style={styles.container}>
       {renderContent()}
       <TouchableOpacity
         style={styles.fab}
@@ -211,15 +330,15 @@ export const TaskListScreen = ({ navigation }) => {
       >
         <Icon name="add" size={30} color="#fff" />
       </TouchableOpacity>
-    </>
+    </View>
   );
 };
 
-// --- Styles (NEW styles added) ---
+// --- Styles (Updated with fonts and new button) ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f7fe' },
   centered: {
-    ...getFont('medium', 16), // FONT
+    ...getFont('medium', 16),
     fontWeight: '500',
     flex: 1,
     justifyContent: 'center',
@@ -229,8 +348,8 @@ const styles = StyleSheet.create({
   },
   sectionContainer: { marginHorizontal: 16, marginTop: 20 },
   sectionTitle: {
-    ...getFont('bold', 20), // FONT
-    fontWeight: 'bold', // Fallback
+    ...getFont('bold', 20),
+    fontWeight: 'bold',
     color: '#000',
     marginBottom: 10,
   },
@@ -257,14 +376,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  taskTextContainer: { flex: 1 },
+  taskTextContainer: { flex: 1, marginRight: 10 },
   taskText: {
-    ...getFont('medium', 16), // FONT
+    ...getFont('medium', 16),
     fontWeight: '500',
     color: '#333',
   },
   taskSubText: {
-    ...getFont('regular', 12), // FONT
+    ...getFont('regular', 12),
     fontWeight: '400',
     color: 'gray',
     marginTop: 2,
@@ -286,19 +405,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
 
-  // --- NEW STYLES ---
   taskItemCompleted: {
-    backgroundColor: '#f9f9f9', // Lighter background
+    backgroundColor: '#f9f9f9',
     opacity: 0.7,
   },
   taskTextCompleted: {
-    ...getFont('medium', 16), // FONT
+    ...getFont('medium', 16),
     fontWeight: '500',
     textDecorationLine: 'line-through',
     color: '#888',
   },
   taskCheckboxCompleted: {
-    backgroundColor: '#007AFF', // Filled check
+    backgroundColor: '#007AFF',
     borderColor: '#007AFF',
+  },
+  // --- NEW STYLE ---
+  myDayButton: {
+    padding: 4,
   },
 });

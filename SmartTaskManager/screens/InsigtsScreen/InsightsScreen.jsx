@@ -13,8 +13,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 // --- 1. Import the BarChart ---
 import { BarChart } from 'react-native-chart-kit';
+import { URL } from '../../ip';
 
-const API_URL = 'http://10.209.2.40:5000'; // Replace with your IP
+const API_URL = URL.nitin; // Replace with your IP
 
 // Get the screen width
 const screenWidth = Dimensions.get('window').width;

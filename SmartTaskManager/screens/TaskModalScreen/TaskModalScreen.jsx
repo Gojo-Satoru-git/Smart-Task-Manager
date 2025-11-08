@@ -14,9 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { debounce } from 'lodash';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import getFont from './../../styles/theme'
+import getFont from './../../styles/theme';
+import { URL } from '../../ip';
 // --- (Make sure this IP is correct) ---
-const API_URL = 'http://10.209.2.40:5000'; // e.g., http://192.168.1.5:5000
+const API_URL = URL.nitin; // e.g., http://192.168.1.5:5000
 
 export const AddTaskModalScreen = ({ navigation }) => {
   const [nlpInput, setNlpInput] = useState('');
@@ -27,12 +28,12 @@ export const AddTaskModalScreen = ({ navigation }) => {
   // ML model outputs (raw)
   const [rawPredictedTime, setRawPredictedTime] = useState(null);
 
-  const [dueDate, setDueDate] = useState(new Date()); 
+  const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [hasDate, setHasDate] = useState(false); 
+  const [hasDate, setHasDate] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchTaskPredictions = async (text) => {
+  const fetchTaskPredictions = async text => {
     if (text.trim().length === 0) return;
     setIsLoading(true);
     try {
@@ -46,10 +47,12 @@ export const AddTaskModalScreen = ({ navigation }) => {
       if (response.ok) {
         setTaskName(data.task_name || '');
         setPredictedPriority(data.predicted_priority || '');
-        
+
         // Store the raw time for saving
         setRawPredictedTime(data.predicted_time_min);
-        setPredictedTime(data.predicted_time_min ? `~ ${data.predicted_time_min} min` : '');
+        setPredictedTime(
+          data.predicted_time_min ? `~ ${data.predicted_time_min} min` : '',
+        );
 
         if (data.due_date) {
           setDueDate(new Date(data.due_date));
@@ -57,7 +60,7 @@ export const AddTaskModalScreen = ({ navigation }) => {
         } else {
           setHasDate(false);
           // If no date, reset our date object to today
-          setDueDate(new Date()); 
+          setDueDate(new Date());
         }
       } else {
         Alert.alert('Error', data.error || 'Could not parse task');
@@ -71,22 +74,25 @@ export const AddTaskModalScreen = ({ navigation }) => {
   };
 
   const onDateChange = (event, selectedDate) => {
+    // Always hide the picker first
     setShowDatePicker(false);
-    if (event.type === 'set' && selectedDate) {
+
+    // Check if a date was actually selected (Android can return undefined on cancel)
+    if (selectedDate) {
       setDueDate(selectedDate);
       setHasDate(true);
     } else {
-      // User cancelled
+      // User cancelled, do nothing
     }
   };
 
   const debouncedFetch = useCallback(debounce(fetchTaskPredictions, 500), []);
 
-  const handleNlpInputChange = (text) => {
+  const handleNlpInputChange = text => {
     setNlpInput(text);
-    debouncedFetch(text); 
+    debouncedFetch(text);
   };
-  
+
   // --- THIS IS THE UPDATED FUNCTION ---
   const handleSave = async () => {
     if (!taskName) {
@@ -130,7 +136,7 @@ export const AddTaskModalScreen = ({ navigation }) => {
 
   const getFormattedDate = () => {
     if (!hasDate) return 'Set Date';
-    return dueDate.toLocaleString(); 
+    return dueDate.toLocaleString();
   };
 
   return (
@@ -148,7 +154,8 @@ export const AddTaskModalScreen = ({ navigation }) => {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}>
+        style={styles.keyboardAvoidingView}
+      >
         <ScrollView style={styles.content}>
           <Text style={styles.label}>What's the task?</Text>
           <TextInput
@@ -168,28 +175,49 @@ export const AddTaskModalScreen = ({ navigation }) => {
             value={taskName}
             onChangeText={setTaskName}
           />
-          
+
           <Text style={styles.label}>Due Date</Text>
-          <TouchableOpacity 
-            style={styles.dateButton} 
+          <TouchableOpacity
+            style={styles.dateButton}
             onPress={() => setShowDatePicker(true)}
           >
             <Icon name="calendar-outline" size={20} color="#555" />
-            <Text style={[styles.dateButtonText, !hasDate && styles.dateButtonPlaceholder]}>
+            <Text
+              style={[
+                styles.dateButtonText,
+                !hasDate && styles.dateButtonPlaceholder,
+              ]}
+            >
               {getFormattedDate()}
             </Text>
           </TouchableOpacity>
-          
-          {showDatePicker && (
+
+          {showDatePicker && Platform.OS === 'ios' && (
             <DateTimePicker
               testID="dateTimePicker"
               value={dueDate}
-              // Use your platform-specific fix
               mode={Platform.OS === 'android' ? 'date' : 'datetime'}
               is24Hour={true}
               display="default"
               onChange={onDateChange}
             />
+          )}
+
+          {/* For Android, the component is always rendered
+              but invisible. 'showDatePicker' triggers the native modal. */}
+          {Platform.OS === 'android' && (
+            <View>
+              {showDatePicker && (
+                <DateTimePicker
+                  testID="dateTimePicker"
+                  value={dueDate}
+                  mode={'date'} // 'date' or 'time'
+                  is24Hour={true}
+                  display="default"
+                  onChange={onDateChange}
+                />
+              )}
+            </View>
           )}
 
           <View style={styles.mlSection}>
@@ -230,7 +258,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f4f7fe', 
+    backgroundColor: '#f4f7fe',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -322,5 +350,5 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: '#555',
     marginTop: 8,
-  }
+  },
 });
