@@ -12,7 +12,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import getFont from './../../styles/theme'
 import { URL } from '../../ip';
 
-const API_URL = URL.nitin; // Replace with your IP
+const API_URL = URL.barath; // Replace with your IP
 
 // --- Helper to format the schedule ---
 const ScheduledTask = ({ item }) => {

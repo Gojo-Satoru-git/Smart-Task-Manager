@@ -10,17 +10,19 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
-// Import your font helper
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { URL } from '../../ip';
-// --- (Make sure this IP is correct) ---
-const API_URL = URL.nitin;
+import { URL } from '../../ip'; // Adjust path
 
-// --- UPDATED TaskItem component ---
-const TaskItem = ({ task, navigation, onComplete, onToggleMyDay }) => {
+const API_URL = URL.barath;
+
+// --- TaskItem component ---
+const TaskItem = ({
+  task,
+  navigation,
+  onComplete,
+  onToggleMyDay,
+  onDelete,
+}) => {
   const isCompleted = task.status === 'completed';
-
-  // Check if the task is on "My Day"
   const isOnMyDay = task.my_day_date ? true : false;
 
   const handleComplete = () => {
@@ -28,11 +30,26 @@ const TaskItem = ({ task, navigation, onComplete, onToggleMyDay }) => {
   };
 
   const handleToggleMyDay = () => {
-    if (!isCompleted) onToggleMyDay(task); // Pass the whole task
+    if (!isCompleted) onToggleMyDay(task);
   };
 
   const handlePress = () => {
     navigation.navigate('TaskDetail', { taskId: task.id });
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Task',
+      `Are you sure you want to delete "${task.task_name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDelete(task.id),
+        },
+      ],
+    );
   };
 
   return (
@@ -65,12 +82,9 @@ const TaskItem = ({ task, navigation, onComplete, onToggleMyDay }) => {
         )}
       </View>
 
-      {/* --- NEW "My Day" Button --- */}
+      {/* "My Day" Button */}
       {!isCompleted && (
-        <TouchableOpacity
-          style={styles.myDayButton}
-          onPress={handleToggleMyDay}
-        >
+        <TouchableOpacity style={styles.iconButton} onPress={handleToggleMyDay}>
           <Icon
             name={isOnMyDay ? 'sunny' : 'sunny-outline'}
             size={22}
@@ -78,18 +92,27 @@ const TaskItem = ({ task, navigation, onComplete, onToggleMyDay }) => {
           />
         </TouchableOpacity>
       )}
+
+      {/* Delete Button */}
+      <TouchableOpacity style={styles.iconButton} onPress={handleDelete}>
+        <Icon
+          name="trash-outline"
+          size={22}
+          color={isCompleted ? '#aaa' : '#E53E3E'}
+        />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 };
 
-// --- TaskSection component (Updated) ---
-// Now passes 'onToggleMyDay'
+// --- TaskSection component ---
 const TaskSection = ({
   title,
   tasks,
   navigation,
   onComplete,
   onToggleMyDay,
+  onDelete, // Added
 }) => (
   <View style={styles.sectionContainer}>
     <Text style={styles.sectionTitle}>{title}</Text>
@@ -99,7 +122,8 @@ const TaskSection = ({
         task={task}
         navigation={navigation}
         onComplete={onComplete}
-        onToggleMyDay={onToggleMyDay} // Pass the function down
+        onToggleMyDay={onToggleMyDay}
+        onDelete={onDelete} // Pass delete handler
       />
     ))}
   </View>
@@ -108,11 +132,9 @@ const TaskSection = ({
 // --- MAIN SCREEN COMPONENT ---
 export const TaskListScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
-  // --- NEW: State for all three lists ---
   const [myDayTasks, setMyDayTasks] = useState([]);
   const [pendingTasks, setPendingTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -122,9 +144,7 @@ export const TaskListScreen = ({ navigation }) => {
     try {
       const response = await fetch(`${API_URL}/api/v1/tasks`);
       if (!response.ok) throw new Error('Failed to fetch tasks');
-
       const data = await response.json();
-      // --- NEW: Set all three lists from the server's response ---
       setMyDayTasks(data.my_day || []);
       setPendingTasks(data.pending || []);
       setCompletedTasks(data.completed || []);
@@ -142,97 +162,54 @@ export const TaskListScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
-  // --- Handle Completing a task ---
   const handleCompleteTask = async taskId => {
-    // Find where the task is (My Day or Pending)
     let taskToComplete = myDayTasks.find(task => task.id === taskId);
     let listType = 'my_day';
-
     if (!taskToComplete) {
       taskToComplete = pendingTasks.find(task => task.id === taskId);
       listType = 'pending';
     }
-
     if (!taskToComplete) return;
 
-    // Optimistic UI: Move task immediately
-    if (listType === 'my_day') {
+    if (listType === 'my_day')
       setMyDayTasks(prev => prev.filter(task => task.id !== taskId));
-    } else {
-      setPendingTasks(prev => prev.filter(task => task.id !== taskId));
-    }
+    else setPendingTasks(prev => prev.filter(task => task.id !== taskId));
     setCompletedTasks(prev => [
       { ...taskToComplete, status: 'completed' },
       ...prev,
     ]);
 
-    // Now, tell the server
     try {
-      const response = await fetch(
-        `${API_URL}/api/v1/tasks/${taskId}/complete`,
-        {
-          method: 'PUT',
-        },
-      );
-      if (!response.ok) {
-        // Roll back on failure
-        Alert.alert('Error', 'Could not complete the task.');
-        setCompletedTasks(prev => prev.filter(task => task.id !== taskId));
-        if (listType === 'my_day') {
-          setMyDayTasks(prev => [taskToComplete, ...prev]);
-        } else {
-          setPendingTasks(prev => [taskToComplete, ...prev]);
-        }
-      }
+      await fetch(`${API_URL}/api/v1/tasks/${taskId}/complete`, {
+        method: 'PUT',
+      });
     } catch (e) {
-      // Roll back on failure
       Alert.alert('Error', 'Could not complete the task.');
       setCompletedTasks(prev => prev.filter(task => task.id !== taskId));
-      if (listType === 'my_day') {
+      if (listType === 'my_day')
         setMyDayTasks(prev => [taskToComplete, ...prev]);
-      } else {
-        setPendingTasks(prev => [taskToComplete, ...prev]);
-      }
+      else setPendingTasks(prev => [taskToComplete, ...prev]);
     }
   };
 
-  // --- NEW: Handle Toggling "My Day" ---
   const handleToggleMyDay = async task => {
-    let originalList;
-    let targetList;
-
-    // Get today's date as a simple YYYY-MM-DD string for the optimistic update
     const today = new Date().toISOString().split('T')[0];
-
-    // Is it currently in "My Day"?
+    let originalList;
     if (myDayTasks.find(t => t.id === task.id)) {
       originalList = 'my_day';
-      targetList = 'pending';
-
-      // Optimistic UI: Move from My Day to Pending
       setMyDayTasks(prev => prev.filter(t => t.id !== task.id));
-
-      // --- FIX: Create a new object with 'my_day_date' set to null ---
       setPendingTasks(prev => [{ ...task, my_day_date: null }, ...prev]);
     } else {
       originalList = 'pending';
-      targetList = 'my_day';
-
-      // Optimistic UI: Move from Pending to My Day
       setPendingTasks(prev => prev.filter(t => t.id !== task.id));
-
-      // --- FIX: Create a new object with a truthy 'my_day_date' ---
       setMyDayTasks(prev => [{ ...task, my_day_date: today }, ...prev]);
     }
-
-    // Call the server
     try {
       await fetch(`${API_URL}/api/v1/tasks/${task.id}/myday`, {
         method: 'POST',
       });
     } catch (e) {
       Alert.alert('Error', 'Could not update "My Day".');
-      // Roll back on failure
       if (originalList === 'my_day') {
         setPendingTasks(prev => prev.filter(t => t.id !== task.id));
         setMyDayTasks(prev => [task, ...prev]);
@@ -243,16 +220,43 @@ export const TaskListScreen = ({ navigation }) => {
     }
   };
 
-  // --- Splitting logic for "Pending" tasks ---
+  const handleDeleteTask = async taskId => {
+    let originalList;
+    let taskToDelete;
+    if (myDayTasks.find(t => t.id === taskId)) {
+      originalList = 'my_day';
+      taskToDelete = myDayTasks.find(t => t.id === taskId);
+      setMyDayTasks(prev => prev.filter(t => t.id !== taskId));
+    } else if (pendingTasks.find(t => t.id === taskId)) {
+      originalList = 'pending';
+      taskToDelete = pendingTasks.find(t => t.id === taskId);
+      setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+    } else {
+      originalList = 'completed';
+      taskToDelete = completedTasks.find(t => t.id === taskId);
+      setCompletedTasks(prev => prev.filter(t => t.id !== taskId));
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete task');
+    } catch (e) {
+      Alert.alert('Error', 'Could not delete the task.');
+      if (originalList === 'my_day')
+        setMyDayTasks(prev => [taskToDelete, ...prev]);
+      else if (originalList === 'pending')
+        setPendingTasks(prev => [taskToDelete, ...prev]);
+      else setCompletedTasks(prev => [taskToDelete, ...prev]);
+    }
+  };
+
   const priorityTasks = pendingTasks.filter(
-    task =>
-      task.predicted_priority === 'High' ||
-      task.predicted_priority === 'Critical',
+    t => t.predicted_priority === 'High' || t.predicted_priority === 'Critical',
   );
   const otherTasks = pendingTasks.filter(
-    task =>
-      task.predicted_priority !== 'High' &&
-      task.predicted_priority !== 'Critical',
+    t => t.predicted_priority !== 'High' && t.predicted_priority !== 'Critical',
   );
 
   const renderContent = () => {
@@ -274,10 +278,8 @@ export const TaskListScreen = ({ navigation }) => {
     ) {
       return <Text style={styles.centered}>No tasks found. Add one!</Text>;
     }
-
     return (
       <ScrollView>
-        {/* --- NEW: "My Day" Section --- */}
         {myDayTasks.length > 0 && (
           <TaskSection
             title="☀️ My Day"
@@ -285,9 +287,9 @@ export const TaskListScreen = ({ navigation }) => {
             navigation={navigation}
             onComplete={handleCompleteTask}
             onToggleMyDay={handleToggleMyDay}
+            onDelete={handleDeleteTask}
           />
         )}
-
         {priorityTasks.length > 0 && (
           <TaskSection
             title="✨ Smart Priority"
@@ -295,9 +297,9 @@ export const TaskListScreen = ({ navigation }) => {
             navigation={navigation}
             onComplete={handleCompleteTask}
             onToggleMyDay={handleToggleMyDay}
+            onDelete={handleDeleteTask}
           />
         )}
-
         {otherTasks.length > 0 && (
           <TaskSection
             title="Other Tasks"
@@ -305,9 +307,9 @@ export const TaskListScreen = ({ navigation }) => {
             navigation={navigation}
             onComplete={handleCompleteTask}
             onToggleMyDay={handleToggleMyDay}
+            onDelete={handleDeleteTask}
           />
         )}
-
         {completedTasks.length > 0 && (
           <TaskSection
             title="Recently Completed"
@@ -315,6 +317,7 @@ export const TaskListScreen = ({ navigation }) => {
             navigation={navigation}
             onComplete={() => {}}
             onToggleMyDay={() => {}}
+            onDelete={handleDeleteTask}
           />
         )}
       </ScrollView>
@@ -334,7 +337,6 @@ export const TaskListScreen = ({ navigation }) => {
   );
 };
 
-// --- Styles (Updated with fonts and new button) ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f7fe' },
   centered: {
@@ -377,11 +379,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   taskTextContainer: { flex: 1, marginRight: 10 },
-  taskText: {
-    ...getFont('medium', 16),
-    fontWeight: '500',
-    color: '#333',
-  },
+  taskText: { ...getFont('medium', 16), fontWeight: '500', color: '#333' },
   taskSubText: {
     ...getFont('regular', 12),
     fontWeight: '400',
@@ -404,23 +402,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
-
-  taskItemCompleted: {
-    backgroundColor: '#f9f9f9',
-    opacity: 0.7,
-  },
+  taskItemCompleted: { backgroundColor: '#f9f9f9', opacity: 0.7 },
   taskTextCompleted: {
     ...getFont('medium', 16),
     fontWeight: '500',
     textDecorationLine: 'line-through',
     color: '#888',
   },
-  taskCheckboxCompleted: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  // --- NEW STYLE ---
-  myDayButton: {
-    padding: 4,
-  },
+  taskCheckboxCompleted: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+  iconButton: { padding: 4, marginLeft: 8 },
 });

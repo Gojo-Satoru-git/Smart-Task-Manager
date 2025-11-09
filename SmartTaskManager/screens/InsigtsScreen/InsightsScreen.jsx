@@ -15,7 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { BarChart } from 'react-native-chart-kit';
 import { URL } from '../../ip';
 
-const API_URL = URL.nitin; // Replace with your IP
+const API_URL = URL.barath; // Replace with your IP
 
 // Get the screen width
 const screenWidth = Dimensions.get('window').width;

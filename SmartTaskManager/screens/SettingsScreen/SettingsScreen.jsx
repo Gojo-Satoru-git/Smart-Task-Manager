@@ -12,7 +12,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { URL } from '../../ip';
 
 // --- 2. Define API_URL ---
-const API_URL = URL.nitin;
+const API_URL = URL.barath;
 
 // Reusable settings item component
 const SettingsItem = ({ label, iconName, onPress }) => (

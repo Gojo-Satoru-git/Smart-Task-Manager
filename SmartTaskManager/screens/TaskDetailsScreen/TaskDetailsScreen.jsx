@@ -12,7 +12,7 @@ import { URL } from '../../ip';
 import theme from '../../styles/theme';
 
 // 2. Define your API URL
-const API_URL = URL.nitin; 
+const API_URL = URL.barath; 
 
 export const TaskDetailScreen = ({ route }) => {
   // --- Get the task ID passed from TaskListScreen ---

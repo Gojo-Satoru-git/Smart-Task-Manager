@@ -17,7 +17,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import getFont from './../../styles/theme';
 import { URL } from '../../ip';
 // --- (Make sure this IP is correct) ---
-const API_URL = URL.nitin; // e.g., http://192.168.1.5:5000
+const API_URL = URL.barath; // e.g., http://192.168.1.5:5000
 
 export const AddTaskModalScreen = ({ navigation }) => {
   const [nlpInput, setNlpInput] = useState('');
@@ -30,6 +30,7 @@ export const AddTaskModalScreen = ({ navigation }) => {
 
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [hasDate, setHasDate] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -74,15 +75,28 @@ export const AddTaskModalScreen = ({ navigation }) => {
   };
 
   const onDateChange = (event, selectedDate) => {
-    // Always hide the picker first
     setShowDatePicker(false);
-
-    // Check if a date was actually selected (Android can return undefined on cancel)
     if (selectedDate) {
-      setDueDate(selectedDate);
+      const newDate = new Date(dueDate);
+      newDate.setFullYear(selectedDate.getFullYear());
+      newDate.setMonth(selectedDate.getMonth());
+      newDate.setDate(selectedDate.getDate());
+      setDueDate(newDate);
       setHasDate(true);
-    } else {
-      // User cancelled, do nothing
+      if (Platform.OS === 'android') {
+        setShowTimePicker(true);
+      }
+    }
+  };
+
+  const onTimeChange = (event, selectedTime) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newTime = new Date(dueDate);
+      newTime.setHours(selectedTime.getHours());
+      newTime.setMinutes(selectedTime.getMinutes());
+      setDueDate(newTime);
+      setHasDate(true);
     }
   };
 
@@ -93,7 +107,6 @@ export const AddTaskModalScreen = ({ navigation }) => {
     debouncedFetch(text);
   };
 
-  // --- THIS IS THE UPDATED FUNCTION ---
   const handleSave = async () => {
     if (!taskName) {
       Alert.alert('Please enter a task name.');
@@ -138,6 +151,14 @@ export const AddTaskModalScreen = ({ navigation }) => {
     if (!hasDate) return 'Set Date';
     return dueDate.toLocaleString();
   };
+  const showPicker = () => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(true); // Start the chain
+    } else {
+      // For iOS, mode='datetime' works, so we only need one
+      setShowDatePicker(true);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -177,10 +198,7 @@ export const AddTaskModalScreen = ({ navigation }) => {
           />
 
           <Text style={styles.label}>Due Date</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
+          <TouchableOpacity style={styles.dateButton} onPress={showPicker}>
             <Icon name="calendar-outline" size={20} color="#555" />
             <Text
               style={[
@@ -192,9 +210,9 @@ export const AddTaskModalScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
 
-          {showDatePicker && Platform.OS === 'ios' && (
+          {showDatePicker && (
             <DateTimePicker
-              testID="dateTimePicker"
+              testID="datePicker"
               value={dueDate}
               mode={Platform.OS === 'android' ? 'date' : 'datetime'}
               is24Hour={true}
@@ -203,23 +221,16 @@ export const AddTaskModalScreen = ({ navigation }) => {
             />
           )}
 
-          {/* For Android, the component is always rendered
-              but invisible. 'showDatePicker' triggers the native modal. */}
-          {Platform.OS === 'android' && (
-            <View>
-              {showDatePicker && (
-                <DateTimePicker
-                  testID="dateTimePicker"
-                  value={dueDate}
-                  mode={'date'} // 'date' or 'time'
-                  is24Hour={true}
-                  display="default"
-                  onChange={onDateChange}
-                />
-              )}
-            </View>
+          {showTimePicker && Platform.OS === 'android' && (
+            <DateTimePicker
+              testID="timePicker"
+              value={dueDate}
+              mode={'time'}
+              is24Hour={true}
+              display="default"
+              onChange={onTimeChange}
+            />
           )}
-
           <View style={styles.mlSection}>
             <View style={styles.mlBox}>
               <Text style={styles.mlLabel}>✨ Est. Time (ML)</Text>
