@@ -1,3 +1,23 @@
+"""
+Data Generation Script for Smart Task Manager
+
+This script populates the database with synthetic task data for:
+1. Historical completed tasks
+2. Current pending tasks
+3. Future scheduled tasks
+
+The data is generated based on realistic task profiles with:
+- Different frequencies (daily, occasional, urgent)
+- Variable time requirements
+- Random completion patterns
+- ML-predicted attributes
+
+Note: This script must be run from the same directory as app.py
+as it imports the database models and ML components.
+
+Author: Gojo-Satoru-git
+"""
+
 import os
 import random
 import pandas as pd
@@ -11,8 +31,19 @@ from app import (
     nlp, time_model, priority_model
 )
 
-# --- 1. Task Profiles (Based on your input) ---
-# We'll use these as templates
+# --- Task Profile Templates ---
+"""
+Task profiles define common patterns of tasks for data generation.
+Each profile contains:
+- name: Description of the task
+- time_min/max: Expected duration range in minutes
+- freq: Frequency pattern, can be:
+  * daily: Occurs every day
+  * daily_evening: Typically evening tasks
+  * occasional: Random occurrence
+  * urgent: High-priority tasks
+  * contest_sat/sun: Weekend-specific tasks
+"""
 TASK_PROFILES = [
     {'name': 'Do a Leetcode problem', 'time_min': 30, 'time_max': 60, 'freq': 'daily'},
     {'name': 'Do a Duolingo lesson', 'time_min': 25, 'time_max': 35, 'freq': 'daily'},

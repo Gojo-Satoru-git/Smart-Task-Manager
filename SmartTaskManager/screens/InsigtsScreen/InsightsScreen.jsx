@@ -38,11 +38,23 @@ const chartConfig = {
   },
 };
 
+/**
+ * InsightsScreen Component
+ *
+ * This screen displays productivity analytics including:
+ * - AI-generated insights about user's task completion patterns
+ * - Weekly productivity visualization using bar charts
+ * - Time management statistics
+ *
+ * The data is fetched from the backend's /api/v1/insights endpoint
+ * and updates whenever the screen comes into focus.
+ */
 export const InsightsScreen = () => {
-  const [insight, setInsight] = useState('');
-  const [chartData, setChartData] = useState(null); // --- 3. State for chart data ---
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // State management for insights data
+  const [insight, setInsight] = useState(''); // AI-generated text insight
+  const [chartData, setChartData] = useState(null); // Weekly productivity data
+  const [isLoading, setIsLoading] = useState(true); // Loading state indicator
+  const [error, setError] = useState(null); // Error handling state
 
   const fetchInsights = async () => {
     setIsLoading(true);
@@ -67,7 +79,7 @@ export const InsightsScreen = () => {
   useFocusEffect(
     useCallback(() => {
       fetchInsights();
-    }, [])
+    }, []),
   );
 
   const renderContent = () => {
@@ -112,7 +124,7 @@ export const InsightsScreen = () => {
         <Icon name="stats-chart-outline" size={40} color="#007AFF" />
         <Text style={styles.title}>Productivity Insights</Text>
       </View>
-      
+
       {renderContent()}
 
       <TouchableOpacity style={styles.refreshButton} onPress={fetchInsights}>

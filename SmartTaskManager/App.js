@@ -1,12 +1,18 @@
 /**
- * Smart Task Manager App
+ * Smart Task Manager App - Root Component
+ *
+ * This is the entry point of the application that sets up:
+ * - Navigation container for routing
+ * - Safe area provider for proper screen spacing
+ * - Status bar configuration
+ *
  * @format
  */
-import 'react-native-gesture-handler'
+import 'react-native-gesture-handler';
 import React from 'react';
 import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import {AppNavigator} from './navigation/AppNavigator'
+import { AppNavigator } from './navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 function App() {

@@ -1,9 +1,27 @@
+"""
+Smart Task Manager - Backend Server
+
+This is the main server application that provides:
+1. RESTful API endpoints for task management
+2. Machine Learning models for task predictions
+3. Reinforcement Learning for smart scheduling
+4. Data analysis for user insights
+
+Key Components:
+- Flask Server: Handles HTTP requests and database operations
+- Supervised ML: Time estimation and priority prediction
+- Reinforcement Learning: Optimal task scheduling
+- Data Analysis: User productivity insights and patterns
+
+Author: Gojo-Satoru-git
+"""
+
 import os
 import re
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 import numpy as np
-import json 
+import json
 
 # --- Flask & DB Imports ---
 from flask import Flask, request, jsonify
@@ -39,12 +57,26 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(base_dir, 't
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- 1. Load ALL Supervised ML Models ---
+# --- Machine Learning Model Initialization ---
+"""
+Initialize all ML models used by the application:
+1. SpaCy NLP: For task name analysis and feature extraction
+2. Time Predictor: RandomForest model to estimate task duration
+3. Priority Predictor: Classifier for task urgency/importance
+
+Each model is loaded from pre-trained files in ml_models/ directory.
+These models are trained on historical task data and user feedback.
+"""
 print("Loading supervised models...")
+# Natural Language Processing model for text analysis
 nlp = spacy.load("en_core_web_sm")
+
+# Time estimation model
 time_model_path = os.path.join(base_dir, 'ml_models', 'time_predictor.joblib')
 time_model = joblib.load(time_model_path)
 print("Time prediction model loaded.")
+
+# Priority classification model
 priority_model_path = os.path.join(base_dir, 'ml_models', 'priority_model.joblib')
 priority_model = joblib.load(priority_model_path)
 print("Priority prediction model loaded.")

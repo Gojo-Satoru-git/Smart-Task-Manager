@@ -3,9 +3,24 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-// --- Import all your screens ---
-// Make sure the path '../screens/' matches your project structure.
-// Import your screens
+/**
+ * Navigation Configuration
+ *
+ * This file defines the navigation structure of the entire application using:
+ * - Stack Navigator: For screen transitions and modals
+ * - Tab Navigator: For main bottom tab navigation
+ *
+ * The navigation hierarchy is:
+ * - Root Stack (AppNavigator)
+ *   ├─ Main Tabs
+ *   │  ├─ Tasks Stack
+ *   │  ├─ Calendar Stack
+ *   │  ├─ Insights Stack
+ *   │  └─ Settings Stack
+ *   └─ Modal Screens (Add/Edit Task)
+ */
+
+// Import screens for navigation setup
 import { TaskListScreen } from '../screens/TaskListScreen/TaskListScreen';
 import { TaskDetailScreen } from '../screens/TaskDetailsScreen/TaskDetailsScreen';
 import { CalendarScreen } from '../screens/CalendarScreen/CalendarScreen';
@@ -27,14 +42,14 @@ const Tab = createBottomTabNavigator();
 const TasksStack = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen 
-        name="TaskList" 
-        component={TaskListScreen} 
-        options={{ title: 'My Tasks' }} 
+      <Stack.Screen
+        name="TaskList"
+        component={TaskListScreen}
+        options={{ title: 'My Tasks' }}
       />
-      <Stack.Screen 
-        name="TaskDetail" 
-        component={TaskDetailScreen} 
+      <Stack.Screen
+        name="TaskDetail"
+        component={TaskDetailScreen}
         options={{ title: 'Task Details' }}
       />
     </Stack.Navigator>
@@ -47,10 +62,10 @@ const TasksStack = () => {
 const CalendarStack = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen 
-        name="Calendar" 
-        component={CalendarScreen} 
-        options={{ title: 'Schedule' }} 
+      <Stack.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{ title: 'Schedule' }}
       />
     </Stack.Navigator>
   );
@@ -62,10 +77,10 @@ const CalendarStack = () => {
 const InsightsStack = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen 
-        name="Insights" 
-        component={InsightsScreen} 
-        options={{ title: 'Productivity' }} 
+      <Stack.Screen
+        name="Insights"
+        component={InsightsScreen}
+        options={{ title: 'Productivity' }}
       />
     </Stack.Navigator>
   );
@@ -77,10 +92,10 @@ const InsightsStack = () => {
 const SettingsStack = () => {
   return (
     <Stack.Navigator>
-      <Stack.Screen 
-        name="Settings" 
-        component={SettingsScreen} 
-        options={{ title: 'Settings' }} 
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
       />
     </Stack.Navigator>
   );
@@ -96,7 +111,9 @@ const MainTabs = () => {
           let iconName;
 
           if (route.name === 'Tasks') {
-            iconName = focused ? 'checkmark-done-circle' : 'checkmark-done-circle-outline';
+            iconName = focused
+              ? 'checkmark-done-circle'
+              : 'checkmark-done-circle-outline';
           } else if (route.name === 'Calendar') {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'Insights') {

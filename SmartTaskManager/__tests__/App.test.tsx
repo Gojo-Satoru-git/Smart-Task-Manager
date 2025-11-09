@@ -1,4 +1,12 @@
 /**
+ * App Component Tests
+ * 
+ * This file contains the main test suite for the App component.
+ * It verifies that:
+ * - The app renders without crashing
+ * - Navigation structure is properly initialized
+ * - Root components are properly configured
+ * 
  * @format
  */
 
