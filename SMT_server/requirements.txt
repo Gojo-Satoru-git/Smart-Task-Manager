@@ -1,3 +1,4 @@
 pip install tensorflow==2.15.0 tf-agents
 pip install Flask flask_cors Flask-SQLAlchemy
 pip install spacy scikit-learn dateparser joblib pandas
+python -m spacy download en_core_web_sm
