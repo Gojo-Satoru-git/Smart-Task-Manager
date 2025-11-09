@@ -8,12 +8,11 @@ from tf_agents.networks import q_network
 from tf_agents.environments import tf_py_environment, py_environment, utils
 from tf_agents.specs import array_spec
 from tf_agents.utils import common
-from tf_agents.trajectories import trajectory
-from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.trajectories import time_step as ts
-from tf_agents.policies import policy_saver # We're not using this, but good to check import
 
-# --- 1. Define the Environment (The "World") ---
+
+
+
 class CalendarEnv(py_environment.PyEnvironment):
 
     def __init__(self):
@@ -66,10 +65,8 @@ def create_agent():
     q_net = q_network.QNetwork(
         train_env.observation_spec(),
         train_env.action_spec(),
-        fc_layer_params=(128, 64) # Two hidden layers
+        fc_layer_params=(128, 64) 
     )
-
-    # Define the Agent
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=1e-3)
     
     agent = dqn_agent.DqnAgent(

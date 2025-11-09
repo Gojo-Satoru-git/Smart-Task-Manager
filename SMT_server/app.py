@@ -1,5 +1,5 @@
 """
-Smart Task Manager - Backend Server
+Smart Task Manager - Backend Server (FINAL VERSION)
 
 This is the main server application that provides:
 1. RESTful API endpoints for task management
@@ -58,25 +58,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # --- Machine Learning Model Initialization ---
-"""
-Initialize all ML models used by the application:
-1. SpaCy NLP: For task name analysis and feature extraction
-2. Time Predictor: RandomForest model to estimate task duration
-3. Priority Predictor: Classifier for task urgency/importance
-
-Each model is loaded from pre-trained files in ml_models/ directory.
-These models are trained on historical task data and user feedback.
-"""
 print("Loading supervised models...")
-# Natural Language Processing model for text analysis
 nlp = spacy.load("en_core_web_sm")
 
-# Time estimation model
 time_model_path = os.path.join(base_dir, 'ml_models', 'time_predictor.joblib')
 time_model = joblib.load(time_model_path)
 print("Time prediction model loaded.")
 
-# Priority classification model
 priority_model_path = os.path.join(base_dir, 'ml_models', 'priority_model.joblib')
 priority_model = joblib.load(priority_model_path)
 print("Priority prediction model loaded.")
@@ -184,16 +172,25 @@ def parse_task():
     time_until_due_hours = 24 * 7
     for ent in doc.ents:
         if ent.label_ in ("DATE", "TIME", "DURATION"):
-            parsed_due_date = dateparser.parse(ent.text)
+            parsed_due_date = dateparser.parse(ent.text, settings={'PREFER_DATES_FROM': 'future'})
             task_name = re.sub(re.escape(ent.text), '', task_name, flags=re.IGNORECASE)
             task_name = task_name.strip()
             if parsed_due_date:
                 time_diff_seconds = (parsed_due_date - datetime.now()).total_seconds()
                 time_until_due_hours = max(0, time_diff_seconds / 3600)
             break
+            
     predicted_time_raw = time_model.predict([task_name])[0]
     predicted_time_min = int(round(predicted_time_raw / 5.0) * 5.0)
-    priority_input_df = pd.DataFrame({'task_name': [task_name], 'time_until_due_hours': [time_until_due_hours], 'predicted_time_min': [predicted_time_min]})
+    
+    # --- THIS IS THE FIX ---
+    # The priority model was trained on 'time_estimate_min', not 'predicted_time_min'
+    priority_input_df = pd.DataFrame({
+        'task_name': [task_name], 
+        'time_until_due_hours': [time_until_due_hours], 
+        'time_estimate_min': [predicted_time_min] # <-- This line is corrected
+    })
+    
     predicted_priority = priority_model.predict(priority_input_df)[0]
     print(f"Model's guess: {predicted_priority} (due in {time_until_due_hours:.1f}h)")
     return jsonify({"task_name": task_name, "due_date": parsed_due_date.isoformat() if parsed_due_date else None, "predicted_time_min": predicted_time_min, "predicted_priority": predicted_priority})
@@ -253,8 +250,6 @@ def complete_task(task_id):
     
     # --- NEW: Save the user-provided time directly ---
     task.actual_time_taken_min = int(actual_time)
-    
-    # We no longer calculate (created_at - completed_at)
     
     db.session.commit()
     print(f"Task {task.id} completed. Actual time: {task.actual_time_taken_min} min (User reported)")
