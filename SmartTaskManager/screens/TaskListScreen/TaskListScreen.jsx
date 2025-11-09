@@ -11,6 +11,7 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { URL } from '../../ip'; // Adjust path
+import FeedbackModal from './feedbackmodal'
 
 const API_URL = URL.barath;
 
@@ -134,6 +135,8 @@ export const TaskListScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const [myDayTasks, setMyDayTasks] = useState([]);
   const [pendingTasks, setPendingTasks] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [taskToComplete, setTaskToComplete] = useState(null);
   const [completedTasks, setCompletedTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -162,33 +165,65 @@ export const TaskListScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
+  // --- UPDATED: Handle Completing a task (shows custom modal) ---
   const handleCompleteTask = async taskId => {
-    let taskToComplete = myDayTasks.find(task => task.id === taskId);
-    let listType = 'my_day';
-    if (!taskToComplete) {
-      taskToComplete = pendingTasks.find(task => task.id === taskId);
-      listType = 'pending';
-    }
-    if (!taskToComplete) return;
+    // 1. Find the task to complete
+    let task =
+      myDayTasks.find(t => t.id === taskId) ||
+      pendingTasks.find(t => t.id === taskId);
 
-    if (listType === 'my_day')
+    if (task) {
+      // 2. Set the task in state and show the modal
+      setTaskToComplete(task);
+      setModalVisible(true);
+    }
+  };
+
+  // --- NEW: This function is called by the modal ---
+  const completeTaskOnServer = async actualTime => {
+    if (!taskToComplete) return; // Safety check
+
+    const taskId = taskToComplete.id;
+    const listType = myDayTasks.find(t => t.id === taskId)
+      ? 'my_day'
+      : 'pending';
+
+    // 3. Hide the modal
+    setModalVisible(false);
+
+    // 4. Optimistic UI: Move task immediately
+    if (listType === 'my_day') {
       setMyDayTasks(prev => prev.filter(task => task.id !== taskId));
-    else setPendingTasks(prev => prev.filter(task => task.id !== taskId));
+    } else {
+      setPendingTasks(prev => prev.filter(task => task.id !== taskId));
+    }
     setCompletedTasks(prev => [
       { ...taskToComplete, status: 'completed' },
       ...prev,
     ]);
 
+    // 5. Tell the server
     try {
-      await fetch(`${API_URL}/api/v1/tasks/${taskId}/complete`, {
-        method: 'PUT',
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/tasks/${taskId}/complete`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actual_time_min: actualTime }),
+        },
+      );
+      if (!response.ok) throw new Error('Failed to complete task on server');
     } catch (e) {
+      // Roll back on failure
       Alert.alert('Error', 'Could not complete the task.');
       setCompletedTasks(prev => prev.filter(task => task.id !== taskId));
-      if (listType === 'my_day')
+      if (listType === 'my_day') {
         setMyDayTasks(prev => [taskToComplete, ...prev]);
-      else setPendingTasks(prev => [taskToComplete, ...prev]);
+      } else {
+        setPendingTasks(prev => [taskToComplete, ...prev]);
+      }
+    } finally {
+      setTaskToComplete(null); // Clear the task
     }
   };
 
@@ -333,6 +368,17 @@ export const TaskListScreen = ({ navigation }) => {
       >
         <Icon name="add" size={30} color="#fff" />
       </TouchableOpacity>
+      {taskToComplete && (
+        <FeedbackModal
+          visible={modalVisible}
+          onClose={() => {
+            setModalVisible(false);
+            setTaskToComplete(null);
+          }}
+          onSubmit={completeTaskOnServer}
+          predictedTime={taskToComplete.predicted_time_min || 30}
+        />
+      )}
     </View>
   );
 };

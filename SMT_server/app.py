@@ -200,18 +200,32 @@ def get_task(task_id):
         return jsonify({"error": "Task not found"}), 404
     return jsonify(task.to_dict())
 
+# --- COMPLETE a task (UPGRADED) ---
 @app.route("/api/v1/tasks/<int:task_id>/complete", methods=["PUT"])
 def complete_task(task_id):
     task = Task.query.get(task_id)
-    if not task: return jsonify({"error": "Task not found"}), 404
-    if task.status == 'completed': return jsonify({"error": "Task already completed"}), 400
+    if not task: 
+        return jsonify({"error": "Task not found"}), 404
+    if task.status == 'completed': 
+        return jsonify({"error": "Task already completed"}), 400
+
+    # --- NEW: Get actual time from the user's feedback ---
+    data = request.get_json()
+    if not data or 'actual_time_min' not in data:
+        return jsonify({"error": "actual_time_min is required"}), 400
+        
+    actual_time = data.get('actual_time_min')
+
     task.status = 'completed'
     task.completed_at = datetime.now(timezone.utc)
-    created_at_aware = task.created_at.replace(tzinfo=timezone.utc)
-    time_taken_seconds = (task.completed_at - created_at_aware).total_seconds()
-    task.actual_time_taken_min = int(time_taken_seconds / 60)
+    
+    # --- NEW: Save the user-provided time directly ---
+    task.actual_time_taken_min = int(actual_time)
+    
+    # We no longer calculate (created_at - completed_at)
+    
     db.session.commit()
-    print(f"Task {task.id} completed. Actual time: {task.actual_time_taken_min} min")
+    print(f"Task {task.id} completed. Actual time: {task.actual_time_taken_min} min (User reported)")
     return jsonify(task.to_dict())
 
 @app.route("/api/v1/tasks/<int:task_id>/myday", methods=["POST"])
